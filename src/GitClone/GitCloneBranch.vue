@@ -9,7 +9,11 @@
     </div>
 
     <!-- 设置弹出框 -->
-    <div class="settings-modal" v-if="showSettings" @click="showSettings = false">
+    <div
+      class="settings-modal"
+      v-if="showSettings"
+      @click="showSettings = false"
+    >
       <div class="settings-content" @click.stop>
         <div class="settings-header">
           <h3>克隆设置</h3>
@@ -18,8 +22,8 @@
         <div class="settings-body">
           <div class="setting-item">
             <label>
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 v-model="settings.autoCloneSingleBranch"
                 @change="saveSettings"
               />
@@ -29,8 +33,8 @@
           </div>
           <div class="setting-item">
             <label>
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 v-model="settings.showProgressDetails"
                 @change="saveSettings"
               />
@@ -41,14 +45,22 @@
           <div class="setting-item">
             <label>默认克隆路径</label>
             <div class="path-input">
-              <input 
-                v-model="settings.defaultClonePath" 
-                type="text" 
+              <input
+                v-model="settings.defaultClonePath"
+                type="text"
                 placeholder="设置默认克隆目录"
                 readonly
               />
-              <button @click="selectDefaultPath" class="select-btn">选择</button>
-              <button @click="clearDefaultPath" class="clear-btn" v-if="settings.defaultClonePath">清除</button>
+              <button @click="selectDefaultPath" class="select-btn">
+                选择
+              </button>
+              <button
+                @click="clearDefaultPath"
+                class="clear-btn"
+                v-if="settings.defaultClonePath"
+              >
+                清除
+              </button>
             </div>
             <small>设置后新仓库将默认克隆到此目录下</small>
           </div>
@@ -60,20 +72,24 @@
       <div class="input-group" v-if="branchInfo.branches.length > 1">
         <label>分支选择:</label>
         <select v-model="selectedBranch" :disabled="loadingBranches">
-          <option value="">{{ branchInfo.defaultBranch || '默认分支' }}</option>
-          <option v-for="branch in branchInfo.branches" :key="branch" :value="branch">
+          <option value="">{{ branchInfo.defaultBranch || "默认分支" }}</option>
+          <option
+            v-for="branch in branchInfo.branches"
+            :key="branch"
+            :value="branch"
+          >
             {{ branch }}
           </option>
         </select>
-        <button 
-          @click="loadBranches" 
+        <button
+          @click="loadBranches"
           :disabled="loadingBranches"
           class="refresh-btn"
         >
-          {{ loadingBranches ? '加载中...' : '刷新' }}
+          {{ loadingBranches ? "加载中..." : "刷新" }}
         </button>
       </div>
-      
+
       <div class="input-group" v-else-if="branchInfo.branches.length === 1">
         <label>分支:</label>
         <div class="single-branch">
@@ -106,12 +122,8 @@
       </div>
 
       <div class="actions">
-        <button 
-          @click="startClone" 
-          :disabled="cloning"
-          class="clone-btn"
-        >
-          {{ cloning ? '克隆中...' : '开始克隆' }}
+        <button @click="startClone" :disabled="cloning" class="clone-btn">
+          {{ cloning ? "克隆中..." : "开始克隆" }}
         </button>
         <button @click="cancel" class="cancel-btn">取消</button>
         <button @click="showSettings = true" class="settings-btn">
@@ -123,258 +135,276 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from "vue";
 
 const props = defineProps({
   enterAction: {
     type: Object,
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
-const repoUrl = ref('')
-const clonePath = ref('')
-const selectedBranch = ref('')
-const branchInfo = ref({ branches: [], shouldAutoClone: false, defaultBranch: null })
-const loadingBranches = ref(false)
-const cloning = ref(false)
-const progress = ref(0)
-const progressText = ref('')
-const repoInfo = ref(null)
-const showSettings = ref(false)
+const repoUrl = ref("");
+const clonePath = ref("");
+const selectedBranch = ref("");
+const branchInfo = ref({
+  branches: [],
+  shouldAutoClone: false,
+  defaultBranch: null,
+});
+const loadingBranches = ref(false);
+const cloning = ref(false);
+const progress = ref(0);
+const progressText = ref("");
+const repoInfo = ref(null);
+const showSettings = ref(false);
 const settings = ref({
-  defaultClonePath: '',
+  defaultClonePath: "",
   autoCloneSingleBranch: false,
-  showProgressDetails: true
-})
+  showProgressDetails: true,
+});
 
 const computedRepoInfo = computed(() => {
-  if (!repoUrl.value) return null
-  return window.services.extractRepoInfo(repoUrl.value)
-})
+  if (!repoUrl.value) return null;
+  return window.services.extractRepoInfo(repoUrl.value);
+});
 
 const loadBranches = async () => {
   if (!repoUrl.value || !window.services.validateGitUrl(repoUrl.value)) {
-    return
+    return;
   }
-  
-  loadingBranches.value = true
-  
+
+  loadingBranches.value = true;
+
   try {
     // 使用智能分支处理
     if (window.services.getSmartBranchInfo) {
-      branchInfo.value = await window.services.getSmartBranchInfo(repoUrl.value)
-      
+      branchInfo.value = await window.services.getSmartBranchInfo(
+        repoUrl.value
+      );
+
       // 如果启用了自动克隆且是单分支，自动开始克隆
       if (branchInfo.value.shouldAutoClone && clonePath.value) {
-        selectedBranch.value = branchInfo.value.branches[0]
+        selectedBranch.value = branchInfo.value.branches[0];
         // 延迟一点时间让用户看到状态
         setTimeout(() => {
           if (settings.value.autoCloneSingleBranch) {
-            startClone()
+            startClone();
           }
-        }, 1000)
+        }, 1000);
       }
     } else {
       // 兼容旧版本
-      const branches = await window.services.getRemoteBranches(repoUrl.value)
+      const branches = await window.services.getRemoteBranches(repoUrl.value);
       branchInfo.value = {
         branches,
         shouldAutoClone: branches.length === 1,
-        defaultBranch: branches.includes('main') ? 'main' : branches.includes('master') ? 'master' : branches[0]
-      }
+        defaultBranch: branches.includes("main")
+          ? "main"
+          : branches.includes("master")
+          ? "master"
+          : branches[0],
+      };
     }
   } catch (error) {
-    console.error('加载分支失败:', error)
-    window.utools.showNotification('加载分支失败: ' + error.message)
-    branchInfo.value = { branches: [], shouldAutoClone: false, defaultBranch: null, error: error.message }
+    console.error("加载分支失败:", error);
+    window.utools.showNotification("加载分支失败: " + error.message);
+    branchInfo.value = {
+      branches: [],
+      shouldAutoClone: false,
+      defaultBranch: null,
+      error: error.message,
+    };
   } finally {
-    loadingBranches.value = false
+    loadingBranches.value = false;
   }
-}
+};
 
 const selectPath = () => {
   try {
     const result = window.utools.showOpenDialog({
-      properties: ['openDirectory'],
-      defaultPath: clonePath.value || 'C:\\'
-    })
-    
-    console.log('选择路径结果:', result)
-    
+      properties: ["openDirectory"],
+      defaultPath: clonePath.value || "C:\\",
+    });
+
+    console.log("选择路径结果:", result);
+
     if (result && result.length > 0) {
-      const repoName = repoInfo.value?.repo || 'repository'
+      const repoName = repoInfo.value?.repo || "repository";
       // 使用Windows路径分隔符，因为这是Windows环境
-      const separator = '\\'
-      clonePath.value = result[0] + separator + repoName
-      console.log('设置克隆路径:', clonePath.value)
+      const separator = "\\";
+      clonePath.value = result[0] + separator + repoName;
+      console.log("设置克隆路径:", clonePath.value);
     } else {
-      console.log('用户取消选择或选择失败')
+      console.log("用户取消选择或选择失败");
     }
   } catch (error) {
-    console.error('选择路径时出错:', error)
-    window.utools.showNotification('选择路径失败: ' + error.message)
+    console.error("选择路径时出错:", error);
+    window.utools.showNotification("选择路径失败: " + error.message);
   }
-}
+};
 
 const startClone = async () => {
-  if (!repoUrl.value || cloning.value) return
-  
-  console.log('开始克隆:', {
+  if (!repoUrl.value || cloning.value) return;
+
+  console.log("开始克隆:", {
     repoUrl: repoUrl.value,
     clonePath: clonePath.value,
-    selectedBranch: selectedBranch.value
-  })
-  
-  cloning.value = true
-  progress.value = 0
-  progressText.value = '准备克隆...'
-  
+    selectedBranch: selectedBranch.value,
+  });
+
+  cloning.value = true;
+  progress.value = 0;
+  progressText.value = "准备克隆...";
+
   try {
     // 验证必要参数
     if (!window.services) {
-      throw new Error('services对象未定义')
+      throw new Error("services对象未定义");
     }
-    
+
     if (!window.services.cloneRepository) {
-      throw new Error('cloneRepository方法未定义')
+      throw new Error("cloneRepository方法未定义");
     }
-    
+
     const result = await window.services.cloneRepository(
       repoUrl.value,
       clonePath.value,
       selectedBranch.value || null,
       (message, percent) => {
-        console.log('克隆进度:', message, percent + '%')
-        progressText.value = message
-        progress.value = percent
+        console.log("克隆进度:", message, percent + "%");
+        progressText.value = message;
+        progress.value = percent;
       }
-    )
-    
-    console.log('克隆结果:', result)
-    
+    );
+
+    console.log("克隆结果:", result);
+
     if (result.success) {
-      window.utools.showNotification('克隆完成！')
-      progressText.value = '克隆成功'
-      
+      window.utools.showNotification("克隆完成！");
+      progressText.value = "克隆成功";
+
       // 尝试打开文件夹
       try {
-        window.services.openFolder(result.path)
+        window.services.openFolder(result.path);
       } catch (error) {
-        console.log('无法打开文件夹:', error)
+        console.log("无法打开文件夹:", error);
       }
-      
+
       // 关闭插件
       setTimeout(() => {
-        window.utools.hideMainWindow()
-      }, 1500)
+        window.utools.hideMainWindow();
+      }, 1500);
     } else {
-      window.utools.showNotification('克隆失败: ' + result.error)
-      progressText.value = result.error
+      window.utools.showNotification("克隆失败: " + result.error);
+      progressText.value = result.error;
     }
   } catch (error) {
-    console.error('克隆过程出错:', error)
-    window.utools.showNotification('克隆过程中发生错误: ' + error.message)
-    progressText.value = '克隆失败'
+    console.error("克隆过程出错:", error);
+    window.utools.showNotification("克隆过程中发生错误: " + error.message);
+    progressText.value = "克隆失败";
   } finally {
-    cloning.value = false
+    cloning.value = false;
   }
-}
+};
 
 const cancel = () => {
-  window.utools.hideMainWindow()
-}
+  window.utools.hideMainWindow();
+};
 
 // 加载用户设置
 const loadSettings = () => {
   if (window.services && window.services.getUserSettings) {
-    const userSettings = window.services.getUserSettings()
-    settings.value = { ...settings.value, ...userSettings }
+    const userSettings = window.services.getUserSettings();
+    settings.value = { ...settings.value, ...userSettings };
   }
-}
+};
 
 // 保存用户设置
 const saveSettings = () => {
   if (window.services && window.services.saveUserSettings) {
-    window.services.saveUserSettings(settings.value)
+    window.services.saveUserSettings(settings.value);
   }
-}
+};
 
 // 选择默认路径
 const selectDefaultPath = async () => {
   try {
     const result = await window.utools.showOpenDialog({
-      properties: ['openDirectory'],
-      title: '选择默认克隆目录'
-    })
-    
+      properties: ["openDirectory"],
+      title: "选择默认克隆目录",
+    });
+
     if (result && result.length > 0) {
-      settings.value.defaultClonePath = result[0]
-      saveSettings()
+      settings.value.defaultClonePath = result[0];
+      saveSettings();
     }
   } catch (error) {
-    console.error('选择默认路径失败:', error)
+    console.error("选择默认路径失败:", error);
   }
-}
+};
 
 // 清除默认路径
 const clearDefaultPath = () => {
-  settings.value.defaultClonePath = ''
-  saveSettings()
-}
+  settings.value.defaultClonePath = "";
+  saveSettings();
+};
 
 // 使用智能路径
 const useSmartPath = () => {
   if (repoInfo.value && window.services.getSmartDefaultPath) {
-    const smartPath = window.services.getSmartDefaultPath(repoInfo.value)
+    const smartPath = window.services.getSmartDefaultPath(repoInfo.value);
     if (smartPath) {
-      clonePath.value = smartPath
-      console.log('使用智能路径:', smartPath)
+      clonePath.value = smartPath;
+      console.log("使用智能路径:", smartPath);
     }
   }
-}
+};
 
 // 监听器
-watch(repoInfo, async (newInfo) => {
+watch(repoInfo, async newInfo => {
   if (newInfo) {
     // 优先使用用户设置的默认克隆路径
     if (settings.value.defaultClonePath) {
-      const separator = '\\'
-      clonePath.value = settings.value.defaultClonePath + separator + newInfo.repo
-      console.log('使用默认克隆路径:', clonePath.value)
+      const separator = "\\";
+      clonePath.value =
+        settings.value.defaultClonePath + separator + newInfo.repo;
+      console.log("使用默认克隆路径:", clonePath.value);
     } else {
       // 否则获取智能路径：优先使用当前资源管理器路径
-      let basePath
+      let basePath;
       try {
-        basePath = await window.services.getCurrentExplorerPath() || window.services.getDefaultClonePath()
+        basePath =
+          (await window.services.getCurrentExplorerPath()) ||
+          window.services.getDefaultClonePath();
       } catch {
-        basePath = window.services.getDefaultClonePath()
+        basePath = window.services.getDefaultClonePath();
       }
       // 使用Windows路径分隔符，因为这是Windows环境
-      const separator = '\\'
-      clonePath.value = basePath + separator + newInfo.repo
+      const separator = "\\";
+      clonePath.value = basePath + separator + newInfo.repo;
     }
   }
-})
+});
 
 // 生命周期
 onMounted(() => {
-  loadSettings()
+  loadSettings();
   if (props.enterAction && props.enterAction.payload) {
-    repoUrl.value = props.enterAction.payload
-    repoInfo.value = window.services.extractRepoInfo(repoUrl.value)
+    repoUrl.value = props.enterAction.payload;
+    repoInfo.value = window.services.extractRepoInfo(repoUrl.value);
     // 自动加载分支
-    loadBranches()
+    loadBranches();
   }
-})
+});
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .git-clone-branch {
   padding: 20px;
   max-width: 600px;
   margin: 0 auto;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .header {
@@ -725,7 +755,7 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 600;
   color: #333;
-  text-shadow: 0 0 3px rgba(255,255,255,0.8);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.8);
 }
 
 .progress-text {

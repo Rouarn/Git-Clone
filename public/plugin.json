@@ -16,7 +16,7 @@
         {
           "type": "regex",
           "label": "克隆Git仓库",
-          "match": "/^(https?://)?(github.com|gitlab.com|gitee.com|bitbucket.org)/[\\w.-]+/[\\w.-]+(.git)?/?$|^git@(github.com|gitlab.com|gitee.com|bitbucket.org):[\\w.-]+/[\\w.-]+(.git)?$/i"
+          "match": "/^(https?:\\/\\/)?([\\w.-]+)(:\\d+)?\\/([\\w.-]+\\/)+[\\w.-]+(\\/?|\\.git\\/?)$|^git@([\\w.-]+):([\\w.-]+\\/)*[\\w.-]+(\\.git)?$|^ssh:\\/\\/git@([\\w.-]+)(:\\d+)?\\/([\\w.-]+\\/)*[\\w.-]+(\\.git)?\\/?$/i"
         }
       ]
     }

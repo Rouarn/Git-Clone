@@ -102,8 +102,8 @@ window.services = {
 
   // 获取智能默认路径
   getSmartDefaultPath (repoInfo) {
-    // 确保repoInfo存在且有name属性
-    if (!repoInfo || !repoInfo.name) {
+    // 确保repoInfo存在且有repo属性
+    if (!repoInfo || !repoInfo.repo) {
       return null
     }
     
@@ -111,16 +111,16 @@ window.services = {
     
     // 如果用户设置了默认路径，使用默认路径
     if (settings.defaultClonePath && fs.existsSync(settings.defaultClonePath)) {
-      return path.join(settings.defaultClonePath, repoInfo.name)
+      return path.join(settings.defaultClonePath, repoInfo.repo)
     }
     
     // 否则使用当前资源管理器路径或下载目录
     const explorerPath = this.getCurrentExplorerPath()
     if (explorerPath) {
-      return path.join(explorerPath, repoInfo.name)
+      return path.join(explorerPath, repoInfo.repo)
     }
     
-    return path.join(window.utools.getPath('downloads'), repoInfo.name)
+    return path.join(window.utools.getPath('downloads'), repoInfo.repo)
   },
 
   // 获取当前Windows资源管理器路径

@@ -91,7 +91,7 @@
         <div class="path-input">
           <input v-model="clonePath" type="text" readonly />
           <button @click="selectPath" class="select-btn">选择</button>
-          <button @click="useSmartPath" class="smart-btn" v-if="repoInfo && settings.defaultClonePath">
+          <button @click="useSmartPath" class="smart-btn" v-if="repoInfo">
             智能路径
           </button>
         </div>
@@ -329,6 +329,7 @@ const useSmartPath = () => {
     const smartPath = window.services.getSmartDefaultPath(repoInfo.value)
     if (smartPath) {
       clonePath.value = smartPath
+      console.log('使用智能路径:', smartPath)
     }
   }
 }
@@ -336,16 +337,23 @@ const useSmartPath = () => {
 // 监听器
 watch(repoInfo, async (newInfo) => {
   if (newInfo) {
-    // 获取默认路径：优先使用当前资源管理器路径
-    let basePath
-    try {
-      basePath = await window.services.getCurrentExplorerPath() || window.services.getDefaultClonePath()
-    } catch {
-      basePath = window.services.getDefaultClonePath()
+    // 优先使用用户设置的默认克隆路径
+    if (settings.value.defaultClonePath) {
+      const separator = '\\'
+      clonePath.value = settings.value.defaultClonePath + separator + newInfo.repo
+      console.log('使用默认克隆路径:', clonePath.value)
+    } else {
+      // 否则获取智能路径：优先使用当前资源管理器路径
+      let basePath
+      try {
+        basePath = await window.services.getCurrentExplorerPath() || window.services.getDefaultClonePath()
+      } catch {
+        basePath = window.services.getDefaultClonePath()
+      }
+      // 使用Windows路径分隔符，因为这是Windows环境
+      const separator = '\\'
+      clonePath.value = basePath + separator + newInfo.repo
     }
-    // 使用Windows路径分隔符，因为这是Windows环境
-    const separator = '\\'
-    clonePath.value = basePath + separator + newInfo.repo
   }
 })
 
@@ -553,18 +561,29 @@ onMounted(() => {
 
 .path-input {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .path-input input {
   flex: 1;
-  background: #f6f8fa;
+  min-width: 200px;
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #ffffff;
+  transition: border-color 0.3s ease;
 }
 
-.refresh-btn,
-.select-btn,
-.smart-btn,
-.clear-btn {
+.path-input input:focus {
+  outline: none;
+  border-color: #007acc;
+  box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.1);
+}
+
+.refresh-btn {
   padding: 8px 12px;
   background: #f6f8fa;
   border: 1px solid #d1d5da;
@@ -575,29 +594,87 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.refresh-btn:hover,
-.select-btn:hover {
+.refresh-btn:hover {
   background: #e1e4e8;
 }
 
+.select-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #007acc, #0056b3);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.3);
+  min-width: 80px;
+  white-space: nowrap;
+}
+
+.select-btn:hover {
+  background: linear-gradient(135deg, #0056b3, #004085);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 122, 204, 0.4);
+}
+
+.select-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.3);
+}
+
 .smart-btn {
-  background: #e3f2fd;
-  border-color: #2196f3;
-  color: #1976d2;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+  margin-left: 8px;
+  min-width: 100px;
+  white-space: nowrap;
 }
 
 .smart-btn:hover {
-  background: #bbdefb;
+  background: linear-gradient(135deg, #20c997, #17a2b8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
+}
+
+.smart-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
 }
 
 .clear-btn {
-  background: #ffebee;
-  border-color: #f44336;
-  color: #d32f2f;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+  white-space: nowrap;
 }
 
 .clear-btn:hover {
-  background: #ffcdd2;
+  background: linear-gradient(135deg, #c82333, #bd2130);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+}
+
+.clear-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
 }
 
 .refresh-btn:disabled {

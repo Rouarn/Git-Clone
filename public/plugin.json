@@ -1,0 +1,24 @@
+{
+  "main": "index.html",
+  "preload": "preload/services.js",
+  "logo": "logo.png",
+  "development": {
+    "main": "http://localhost:5173"
+  },
+  "features": [
+    {
+      "code": "git-clone",
+      "explain": "Git仓库克隆工具",
+      "cmds": [
+        "git克隆",
+        "git clone",
+        "克隆仓库",
+        {
+          "type": "regex",
+          "label": "克隆Git仓库",
+          "match": "/^(https?://)?(github.com|gitlab.com|gitee.com|bitbucket.org)/[\\w.-]+/[\\w.-]+(.git)?/?$|^git@(github.com|gitlab.com|gitee.com|bitbucket.org):[\\w.-]+/[\\w.-]+(.git)?$/i"
+        }
+      ]
+    }
+  ]
+}

@@ -25,12 +25,24 @@
 
 ### 1. 基本使用
 
+#### 方式一：通过搜索栏激活（推荐）
+
 1. 复制 Git 仓库地址（支持 HTTPS 或 SSH 格式）
 2. 打开 uTools（Alt + Space）
 3. 粘贴仓库地址，插件会自动识别并显示
 4. 选择分支（可选，默认使用主分支）
 5. 确认存储路径
 6. 点击「开始克隆」
+
+#### 方式二：手动输入仓库地址
+
+1. 直接打开 uTools（Alt + Space）
+2. 搜索并打开"Git 克隆"插件
+3. 在仓库地址输入框中输入 Git 仓库地址
+4. 点击"确认"按钮或按回车键
+5. 选择分支（可选，默认使用主分支）
+6. 确认存储路径
+7. 点击「开始克隆」
 
 ### 2. 支持的仓库地址格式
 
@@ -103,14 +115,16 @@ pnpm build
 │   ├── plugin.json          # uTools 插件配置
 │   ├── logo.png             # 插件图标
 │   └── preload/
+│       ├── package.json    # 预加载脚本配置
 │       └── services.js     # Node.js 服务层
 ├── src/
 │   ├── App.vue             # 主应用组件
 │   ├── GitClone/
-│   │   └── index.vue       # Git 克隆组件
+│   │   └── GitCloneBranch.vue # Git 分支克隆组件
 │   ├── main.js             # 应用入口
 │   └── main.css            # 全局样式
 ├── package.json            # 项目配置
+├── jsconfig.json           # JavaScript 配置
 └── vite.config.js          # Vite 配置
 ```
 

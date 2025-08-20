@@ -8,6 +8,36 @@
       </div>
     </div>
 
+    <!-- Git仓库输入框 -->
+    <div class="repo-input-section" v-if="!hasInitialRepo">
+      <div class="input-group">
+        <label>Git仓库地址:</label>
+        <div class="repo-input">
+          <input
+            v-model="manualRepoUrl"
+            type="text"
+            placeholder="请输入Git仓库URL (支持HTTPS/SSH格式)"
+            @input="onRepoUrlInput"
+            @keyup.enter="confirmRepoUrl"
+            :class="{ error: repoUrlError }"
+          />
+          <button
+            @click="confirmRepoUrl"
+            :disabled="!manualRepoUrl.trim() || loadingBranches"
+            class="confirm-btn"
+          >
+            {{ loadingBranches ? "验证中..." : "确认" }}
+          </button>
+        </div>
+        <div class="input-hint error-hint" v-if="repoUrlError">
+          {{ repoUrlError }}
+        </div>
+        <div class="input-hint" v-else>
+          支持GitHub、GitLab、Gitee等平台的HTTPS和SSH格式
+        </div>
+      </div>
+    </div>
+
     <!-- 设置弹出框 -->
     <div
       class="settings-modal"
@@ -145,6 +175,9 @@ const props = defineProps({
 });
 
 const repoUrl = ref("");
+const manualRepoUrl = ref("");
+const repoUrlError = ref("");
+const hasInitialRepo = ref(false);
 const clonePath = ref("");
 const selectedBranch = ref("");
 const branchInfo = ref({
@@ -207,7 +240,6 @@ const loadBranches = async () => {
       };
     }
   } catch (error) {
-    console.error("加载分支失败:", error);
     window.utools.showNotification("加载分支失败: " + error.message);
     branchInfo.value = {
       branches: [],
@@ -227,19 +259,14 @@ const selectPath = () => {
       defaultPath: clonePath.value || "C:\\",
     });
 
-    console.log("选择路径结果:", result);
-
     if (result && result.length > 0) {
       const repoName = repoInfo.value?.repo || "repository";
       // 使用Windows路径分隔符，因为这是Windows环境
       const separator = "\\";
       clonePath.value = result[0] + separator + repoName;
-      console.log("设置克隆路径:", clonePath.value);
     } else {
-      console.log("用户取消选择或选择失败");
     }
   } catch (error) {
-    console.error("选择路径时出错:", error);
     window.utools.showNotification("选择路径失败: " + error.message);
   }
 };
@@ -272,13 +299,10 @@ const startClone = async () => {
       clonePath.value,
       selectedBranch.value || null,
       (message, percent) => {
-        console.log("克隆进度:", message, percent + "%");
         progressText.value = message;
         progress.value = percent;
       }
     );
-
-    console.log("克隆结果:", result);
 
     if (result.success) {
       window.utools.showNotification("克隆完成！");
@@ -287,9 +311,7 @@ const startClone = async () => {
       // 尝试打开文件夹
       try {
         window.services.openFolder(result.path);
-      } catch (error) {
-        console.log("无法打开文件夹:", error);
-      }
+      } catch (error) {}
 
       // 关闭插件
       setTimeout(() => {
@@ -300,7 +322,6 @@ const startClone = async () => {
       progressText.value = result.error;
     }
   } catch (error) {
-    console.error("克隆过程出错:", error);
     window.utools.showNotification("克隆过程中发生错误: " + error.message);
     progressText.value = "克隆失败";
   } finally {
@@ -339,9 +360,7 @@ const selectDefaultPath = async () => {
       settings.value.defaultClonePath = result[0];
       saveSettings();
     }
-  } catch (error) {
-    console.error("选择默认路径失败:", error);
-  }
+  } catch (error) {}
 };
 
 // 清除默认路径
@@ -356,9 +375,36 @@ const useSmartPath = () => {
     const smartPath = window.services.getSmartDefaultPath(repoInfo.value);
     if (smartPath) {
       clonePath.value = smartPath;
-      console.log("使用智能路径:", smartPath);
     }
   }
+};
+
+// 处理手动输入仓库URL
+const onRepoUrlInput = () => {
+  repoUrlError.value = "";
+};
+
+// 确认仓库URL
+const confirmRepoUrl = async () => {
+  const url = manualRepoUrl.value.trim();
+  if (!url) {
+    repoUrlError.value = "请输入Git仓库地址";
+    return;
+  }
+
+  // 验证URL格式
+  if (!window.services.validateGitUrl(url)) {
+    repoUrlError.value = "无效的Git仓库地址格式";
+    return;
+  }
+
+  // 设置仓库URL并加载分支
+  repoUrl.value = url;
+  repoInfo.value = window.services.extractRepoInfo(url);
+  repoUrlError.value = "";
+
+  // 加载分支信息
+  await loadBranches();
 };
 
 // 监听器
@@ -369,7 +415,6 @@ watch(repoInfo, async newInfo => {
       const separator = "\\";
       clonePath.value =
         settings.value.defaultClonePath + separator + newInfo.repo;
-      console.log("使用默认克隆路径:", clonePath.value);
     } else {
       // 否则获取智能路径：优先使用当前资源管理器路径
       let basePath;
@@ -390,11 +435,14 @@ watch(repoInfo, async newInfo => {
 // 生命周期
 onMounted(() => {
   loadSettings();
-  if (props.enterAction && props.enterAction.payload) {
+  if (props.enterAction && props.enterAction.payload !== "git克隆") {
     repoUrl.value = props.enterAction.payload;
     repoInfo.value = window.services.extractRepoInfo(repoUrl.value);
+    hasInitialRepo.value = true;
     // 自动加载分支
     loadBranches();
+  } else {
+    hasInitialRepo.value = false;
   }
 });
 </script>
@@ -418,6 +466,80 @@ onMounted(() => {
   margin: 0;
   color: #333;
   font-size: 20px;
+  font-weight: 600;
+}
+
+.repo-input-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+}
+
+.repo-input {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.repo-input input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #ffffff;
+  transition: border-color 0.3s ease;
+}
+
+.repo-input input:focus {
+  outline: none;
+  border-color: #007acc;
+  box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.1);
+}
+
+.repo-input input.error {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.confirm-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #007acc, #0056b3);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.3);
+  min-width: 100px;
+  white-space: nowrap;
+}
+
+.confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0056b3, #004085);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 122, 204, 0.4);
+}
+
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.input-hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.error-hint {
+  color: #dc3545;
   font-weight: 600;
 }
 

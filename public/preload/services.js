@@ -12,31 +12,31 @@ const platformUtils = {
   getPlatform() {
     return os.platform();
   },
-  
+
   // 判断是否为Windows
   isWindows() {
-    return os.platform() === 'win32';
+    return os.platform() === "win32";
   },
-  
+
   // 判断是否为macOS
   isMacOS() {
-    return os.platform() === 'darwin';
+    return os.platform() === "darwin";
   },
-  
+
   // 判断是否为Linux
   isLinux() {
-    return os.platform() === 'linux';
+    return os.platform() === "linux";
   },
-  
+
   // 获取路径分隔符
   getPathSeparator() {
     return path.sep;
   },
-  
+
   // 获取用户主目录
   getHomeDir() {
     return os.homedir();
-  }
+  },
 };
 
 // 通过 window 对象向渲染进程注入 nodejs 能力
@@ -168,6 +168,7 @@ window.services = {
             defaultClonePath: "",
             autoCloneSingleBranch: true,
             showProgressDetails: true,
+            fullClone: false, // 默认使用浅克隆以提高速度
           };
     } catch (error) {
       console.error("获取用户设置失败:", error);
@@ -175,6 +176,7 @@ window.services = {
         defaultClonePath: "",
         autoCloneSingleBranch: true,
         showProgressDetails: true,
+        fullClone: false, // 默认使用浅克隆以提高速度
       };
     }
   },
@@ -236,7 +238,7 @@ window.services = {
         } else if (platformUtils.isMacOS()) {
           // macOS: 获取Finder当前路径
           exec(
-            'osascript -e "tell application \"Finder\" to if (count of Finder windows) > 0 then get POSIX path of (target of front Finder window as alias)"',
+            'osascript -e "tell application "Finder" to if (count of Finder windows) > 0 then get POSIX path of (target of front Finder window as alias)"',
             (error, stdout) => {
               if (!error && stdout.trim()) {
                 resolve(stdout.trim());
@@ -261,7 +263,7 @@ window.services = {
     if (setting) {
       return setting;
     }
-    
+
     // 根据操作系统返回合适的默认路径
     if (platformUtils.isWindows()) {
       return path.join(window.utools.getPath("desktop"), "GitRepos");
@@ -354,10 +356,20 @@ window.services = {
       const git = simpleGit();
       const options = {
         "--progress": null,
+        "--depth": 1, // 浅克隆，只获取最新提交，大幅减少下载量
+        "--single-branch": null, // 只克隆指定分支，减少网络传输
+        "--no-tags": null, // 不下载标签，减少数据量
       };
 
       if (branch) {
         options["--branch"] = branch;
+      }
+
+      // 如果用户设置了完整克隆，则移除浅克隆选项
+      if (settings.fullClone) {
+        delete options["--depth"];
+        delete options["--single-branch"];
+        delete options["--no-tags"];
       }
 
       // 发送开始通知
@@ -366,12 +378,17 @@ window.services = {
       }
 
       // 模拟更详细的进度反馈
-      const progressSteps = [
+      const progressSteps = settings.fullClone ? [
         { message: "正在解析仓库地址...", progress: 10 },
         { message: "正在建立连接...", progress: 20 },
-        { message: "正在下载对象...", progress: 40 },
+        { message: "正在下载完整历史记录...", progress: 40 },
         { message: "正在接收对象...", progress: 70 },
         { message: "正在解压对象...", progress: 90 },
+      ] : [
+        { message: "正在解析仓库地址...", progress: 15 },
+        { message: "正在建立连接...", progress: 30 },
+        { message: "正在下载最新代码（浅克隆）...", progress: 60 },
+        { message: "正在解压文件...", progress: 85 },
       ];
 
       // 如果启用了详细进度显示
@@ -424,11 +441,35 @@ window.services = {
 
   // 显示uTools通知
   showNotification(title, body, type = "info") {
-    window.utools.showNotification({
-      title,
-      body,
-      type, // info, success, warning, error
-    });
+    // utools.showNotification 只接受字符串参数，不接受对象
+    const message = title ? `${title}: ${body}` : body;
+
+    // 检查是否在utools环境中
+    if (window.utools && window.utools.showNotification) {
+      window.utools.showNotification(message);
+    } else {
+      // 开发环境降级处理
+      console.log(`[${type.toUpperCase()}] ${message}`);
+
+      // 尝试使用浏览器通知API
+      if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+          new Notification(title || "通知", {
+            body: body || message,
+            icon: "/logo.png",
+          });
+        } else if (Notification.permission !== "denied") {
+          Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+              new Notification(title || "通知", {
+                body: body || message,
+                icon: "/logo.png",
+              });
+            }
+          });
+        }
+      }
+    }
   },
 
   // 打开文件夹
@@ -440,7 +481,7 @@ window.services = {
         window.utools.shellOpenPath(folderPath);
         return;
       }
-      
+
       // 备用方案：使用系统命令
       const { exec } = require("child_process");
       if (platformUtils.isWindows()) {
@@ -449,7 +490,9 @@ window.services = {
         exec(`open "${folderPath}"`);
       } else {
         // Linux: 尝试常见的文件管理器
-        exec(`xdg-open "${folderPath}" || nautilus "${folderPath}" || dolphin "${folderPath}" || thunar "${folderPath}"`);
+        exec(
+          `xdg-open "${folderPath}" || nautilus "${folderPath}" || dolphin "${folderPath}" || thunar "${folderPath}"`
+        );
       }
     } catch (error) {
       console.error("打开文件夹失败:", error);

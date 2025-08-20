@@ -73,6 +73,17 @@
             <small>显示克隆过程中的详细步骤信息</small>
           </div>
           <div class="setting-item">
+            <label>
+              <input
+                type="checkbox"
+                v-model="settings.fullClone"
+                @change="saveSettings"
+              />
+              完整克隆（包含完整历史）
+            </label>
+            <small>默认使用浅克隆以提高速度，勾选此项将下载完整的Git历史记录</small>
+          </div>
+          <div class="setting-item">
             <label>默认克隆路径</label>
             <div class="path-input">
               <input
@@ -101,22 +112,37 @@
     <div class="form-section">
       <div class="input-group" v-if="branchInfo.branches.length > 1">
         <label>分支选择:</label>
-        <div class="custom-select" :class="{ disabled: loadingBranches, open: dropdownOpen }">
-          <div class="select-trigger" @click="toggleDropdown" :disabled="loadingBranches">
-            <span class="selected-text">{{ selectedBranch || branchInfo.defaultBranch || "默认分支" }}</span>
-            <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div
+          class="custom-select"
+          :class="{ disabled: loadingBranches, open: dropdownOpen }"
+        >
+          <div
+            class="select-trigger"
+            @click="toggleDropdown"
+            :disabled="loadingBranches"
+          >
+            <span class="selected-text">{{
+              selectedBranch || branchInfo.defaultBranch || "默认分支"
+            }}</span>
+            <svg
+              class="dropdown-arrow"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <polyline points="6,9 12,15 18,9"></polyline>
             </svg>
           </div>
           <div class="dropdown-menu" v-show="dropdownOpen">
-            <div 
-              class="dropdown-item" 
+            <div
+              class="dropdown-item"
               :class="{ selected: selectedBranch === '' }"
               @click="selectBranch('')"
             >
               {{ branchInfo.defaultBranch || "默认分支" }}
             </div>
-            <div 
+            <div
               v-for="branch in branchInfo.branches"
               :key="branch"
               class="dropdown-item"
@@ -132,25 +158,27 @@
           :disabled="loadingBranches"
           class="refresh-btn"
         >
-          <svg 
-            v-if="!loadingBranches" 
-            class="refresh-icon" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            v-if="!loadingBranches"
+            class="refresh-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             stroke-width="2"
           >
-            <path d="M23 4v6h-6M1 20v-6h6M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4a9 9 0 0 1-14.85 4.36L3 14"/>
+            <path
+              d="M23 4v6h-6M1 20v-6h6M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4a9 9 0 0 1-14.85 4.36L3 14"
+            />
           </svg>
-          <svg 
-            v-else 
-            class="loading-icon" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            v-else
+            class="loading-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             stroke-width="2"
           >
-            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
           </svg>
           <span>{{ loadingBranches ? "加载中..." : "刷新" }}</span>
         </button>
@@ -232,11 +260,7 @@ const settings = ref({
   defaultClonePath: "",
   autoCloneSingleBranch: false,
   showProgressDetails: true,
-});
-
-const computedRepoInfo = computed(() => {
-  if (!repoUrl.value) return null;
-  return window.services.extractRepoInfo(repoUrl.value);
+  fullClone: false,
 });
 
 const loadBranches = async () => {
@@ -247,7 +271,7 @@ const loadBranches = async () => {
   loadingBranches.value = true;
 
   // 显示开始加载的提示
-  showNotification("正在获取仓库分支信息...");
+  window.services.showNotification("", "正在获取仓库分支信息...");
 
   try {
     // 使用智能分支处理
@@ -283,13 +307,13 @@ const loadBranches = async () => {
     // 成功获取分支后的提示
     const branchCount = branchInfo.value.branches.length;
     if (branchCount > 0) {
-      showNotification(`成功获取到 ${branchCount} 个分支`);
+      window.services.showNotification("", `成功获取到 ${branchCount} 个分支`);
     } else {
-      showNotification("未找到任何分支");
+      window.services.showNotification("", "未找到任何分支");
     }
   } catch (error) {
     console.error("加载分支失败:", error);
-    showNotification("❌ 加载分支失败: " + error.message);
+    window.services.showNotification("加载失败", error.message, "error");
     branchInfo.value = {
       branches: [],
       shouldAutoClone: false,
@@ -326,7 +350,7 @@ const selectPath = () => {
       }
     }
   } catch (error) {
-    showNotification("选择路径失败: " + error.message);
+    window.services.showNotification("选择路径失败", error.message, "error");
   }
 };
 
@@ -364,7 +388,7 @@ const startClone = async () => {
     );
 
     if (result.success) {
-      showNotification("克隆完成！");
+      window.services.showNotification("成功", "克隆完成！");
       progressText.value = "克隆成功";
 
       // 尝试打开文件夹
@@ -377,11 +401,11 @@ const startClone = async () => {
         window.utools.hideMainWindow();
       }, 1500);
     } else {
-      showNotification("克隆失败: " + result.error);
+      window.services.showNotification("克隆失败", result.error, "error");
       progressText.value = result.error;
     }
   } catch (error) {
-    showNotification("克隆过程中发生错误: " + error.message);
+    window.services.showNotification("克隆错误", error.message, "error");
     progressText.value = "克隆失败";
   } finally {
     cloning.value = false;
@@ -395,38 +419,15 @@ const toggleDropdown = () => {
   }
 };
 
-const selectBranch = (branch) => {
+const selectBranch = branch => {
   selectedBranch.value = branch;
   dropdownOpen.value = false;
 };
 
 // 点击外部关闭下拉菜单
-const closeDropdown = (event) => {
-  if (!event.target.closest('.custom-select')) {
+const closeDropdown = event => {
+  if (!event.target.closest(".custom-select")) {
     dropdownOpen.value = false;
-  }
-};
-
-// 通知函数 - 兼容开发环境和生产环境
-const showNotification = (message, type = 'info') => {
-  if (typeof window !== 'undefined' && window.utools && window.utools.showNotification) {
-    // 生产环境 - 使用utools通知
-    window.utools.showNotification(message);
-  } else {
-    // 开发环境 - 使用浏览器通知或console
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Git Clone', { body: message });
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          new Notification('Git Clone', { body: message });
-        } else {
-          console.log(`[通知] ${message}`);
-        }
-      });
-    } else {
-      console.log(`[通知] ${message}`);
-    }
   }
 };
 
@@ -567,13 +568,13 @@ watch(repoInfo, async newInfo => {
 
 // 组件卸载时移除事件监听器
 onUnmounted(() => {
-  document.removeEventListener('click', closeDropdown);
+  document.removeEventListener("click", closeDropdown);
 });
 
 // 生命周期
 onMounted(async () => {
   // 添加全局点击事件监听器
-  document.addEventListener('click', closeDropdown);
+  document.addEventListener("click", closeDropdown);
   loadSettings();
   if (props.enterAction && props.enterAction.payload !== "git克隆") {
     repoUrl.value = props.enterAction.payload;
@@ -971,6 +972,7 @@ onMounted(async () => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 1000;
   max-height: 200px;
+  overflow-x: hidden;
   overflow-y: auto;
   animation: dropdownSlide 0.2s ease-out;
 }
@@ -1013,7 +1015,7 @@ onMounted(async () => {
 }
 
 .dropdown-item.selected::after {
-  content: '✓';
+  content: "✓";
   position: absolute;
   right: 16px;
   top: 50%;
@@ -1062,13 +1064,18 @@ onMounted(async () => {
 }
 
 .refresh-btn::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
   transition: left 0.5s;
 }
 

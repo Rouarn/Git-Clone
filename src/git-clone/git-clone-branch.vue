@@ -3,8 +3,7 @@
     <div class="header">
       <h3>分支克隆</h3>
       <div class="repo-info" v-if="repoInfo">
-        <span class="platform">{{ repoInfo.platform }}</span
-        >git-clone-branch
+        <span class="platform">{{ repoInfo.platform }}</span>
         <span class="repo-name">{{ repoInfo.owner }}/{{ repoInfo.repo }}</span>
       </div>
     </div>
@@ -102,22 +101,58 @@
     <div class="form-section">
       <div class="input-group" v-if="branchInfo.branches.length > 1">
         <label>分支选择:</label>
-        <select v-model="selectedBranch" :disabled="loadingBranches">
-          <option value="">{{ branchInfo.defaultBranch || "默认分支" }}</option>
-          <option
-            v-for="branch in branchInfo.branches"
-            :key="branch"
-            :value="branch"
-          >
-            {{ branch }}
-          </option>
-        </select>
+        <div class="custom-select" :class="{ disabled: loadingBranches, open: dropdownOpen }">
+          <div class="select-trigger" @click="toggleDropdown" :disabled="loadingBranches">
+            <span class="selected-text">{{ selectedBranch || branchInfo.defaultBranch || "默认分支" }}</span>
+            <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6,9 12,15 18,9"></polyline>
+            </svg>
+          </div>
+          <div class="dropdown-menu" v-show="dropdownOpen">
+            <div 
+              class="dropdown-item" 
+              :class="{ selected: selectedBranch === '' }"
+              @click="selectBranch('')"
+            >
+              {{ branchInfo.defaultBranch || "默认分支" }}
+            </div>
+            <div 
+              v-for="branch in branchInfo.branches"
+              :key="branch"
+              class="dropdown-item"
+              :class="{ selected: selectedBranch === branch }"
+              @click="selectBranch(branch)"
+            >
+              {{ branch }}
+            </div>
+          </div>
+        </div>
         <button
           @click="loadBranches"
           :disabled="loadingBranches"
           class="refresh-btn"
         >
-          {{ loadingBranches ? "加载中..." : "刷新" }}
+          <svg 
+            v-if="!loadingBranches" 
+            class="refresh-icon" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2"
+          >
+            <path d="M23 4v6h-6M1 20v-6h6M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4a9 9 0 0 1-14.85 4.36L3 14"/>
+          </svg>
+          <svg 
+            v-else 
+            class="loading-icon" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2"
+          >
+            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+          </svg>
+          <span>{{ loadingBranches ? "加载中..." : "刷新" }}</span>
         </button>
       </div>
 
@@ -166,7 +201,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 
 const props = defineProps({
   enterAction: {
@@ -181,6 +216,7 @@ const repoUrlError = ref("");
 const hasInitialRepo = ref(false);
 const clonePath = ref("");
 const selectedBranch = ref("");
+const dropdownOpen = ref(false);
 const branchInfo = ref({
   branches: [],
   shouldAutoClone: false,
@@ -209,6 +245,9 @@ const loadBranches = async () => {
   }
 
   loadingBranches.value = true;
+
+  // 显示开始加载的提示
+  showNotification("正在获取仓库分支信息...");
 
   try {
     // 使用智能分支处理
@@ -240,8 +279,17 @@ const loadBranches = async () => {
           : branches[0],
       };
     }
+
+    // 成功获取分支后的提示
+    const branchCount = branchInfo.value.branches.length;
+    if (branchCount > 0) {
+      showNotification(`成功获取到 ${branchCount} 个分支`);
+    } else {
+      showNotification("未找到任何分支");
+    }
   } catch (error) {
-    window.utools.showNotification("加载分支失败: " + error.message);
+    console.error("加载分支失败:", error);
+    showNotification("❌ 加载分支失败: " + error.message);
     branchInfo.value = {
       branches: [],
       shouldAutoClone: false,
@@ -254,7 +302,6 @@ const loadBranches = async () => {
 };
 
 const selectPath = () => {
-  git - clone - branch;
   try {
     // 获取跨平台的默认路径
     const defaultPath =
@@ -267,13 +314,19 @@ const selectPath = () => {
 
     if (result && result.length > 0) {
       const repoName = repoInfo.value?.repo || "repository";
-      // 使用Node.js的path.sep获取当前系统的路径分隔符
-      const path = require("path");
-      clonePath.value = path.join(result[0], repoName);
-    } else {
+      // 使用window.services的路径拼接方法
+      if (window.services.joinPath) {
+        clonePath.value = window.services.joinPath(result[0], repoName);
+      } else {
+        // 简单的路径拼接作为后备方案
+        clonePath.value =
+          result[0] +
+          (result[0].endsWith("\\") || result[0].endsWith("/") ? "" : "\\") +
+          repoName;
+      }
     }
   } catch (error) {
-    window.utools.showNotification("选择路径失败: " + error.message);
+    showNotification("选择路径失败: " + error.message);
   }
 };
 
@@ -311,7 +364,7 @@ const startClone = async () => {
     );
 
     if (result.success) {
-      window.utools.showNotification("克隆完成！");
+      showNotification("克隆完成！");
       progressText.value = "克隆成功";
 
       // 尝试打开文件夹
@@ -324,14 +377,56 @@ const startClone = async () => {
         window.utools.hideMainWindow();
       }, 1500);
     } else {
-      window.utools.showNotification("克隆失败: " + result.error);
+      showNotification("克隆失败: " + result.error);
       progressText.value = result.error;
     }
   } catch (error) {
-    window.utools.showNotification("克隆过程中发生错误: " + error.message);
+    showNotification("克隆过程中发生错误: " + error.message);
     progressText.value = "克隆失败";
   } finally {
     cloning.value = false;
+  }
+};
+
+// 自定义下拉组件控制函数
+const toggleDropdown = () => {
+  if (!loadingBranches.value) {
+    dropdownOpen.value = !dropdownOpen.value;
+  }
+};
+
+const selectBranch = (branch) => {
+  selectedBranch.value = branch;
+  dropdownOpen.value = false;
+};
+
+// 点击外部关闭下拉菜单
+const closeDropdown = (event) => {
+  if (!event.target.closest('.custom-select')) {
+    dropdownOpen.value = false;
+  }
+};
+
+// 通知函数 - 兼容开发环境和生产环境
+const showNotification = (message, type = 'info') => {
+  if (typeof window !== 'undefined' && window.utools && window.utools.showNotification) {
+    // 生产环境 - 使用utools通知
+    window.utools.showNotification(message);
+  } else {
+    // 开发环境 - 使用浏览器通知或console
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Git Clone', { body: message });
+    } else if ('Notification' in window && Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification('Git Clone', { body: message });
+        } else {
+          console.log(`[通知] ${message}`);
+        }
+      });
+    } else {
+      console.log(`[通知] ${message}`);
+    }
   }
 };
 
@@ -385,6 +480,56 @@ const useSmartPath = () => {
   }
 };
 
+// 自动设置克隆路径
+const setAutoClonePath = async repoInfo => {
+  if (!repoInfo) return;
+
+  try {
+    // 优先使用用户设置的默认克隆路径
+    if (settings.value.defaultClonePath) {
+      // 使用window.services的路径拼接方法
+      if (window.services.joinPath) {
+        clonePath.value = window.services.joinPath(
+          settings.value.defaultClonePath,
+          repoInfo.repo
+        );
+      } else {
+        // 简单的路径拼接作为后备方案
+        clonePath.value =
+          settings.value.defaultClonePath +
+          (settings.value.defaultClonePath.endsWith("\\") ||
+          settings.value.defaultClonePath.endsWith("/")
+            ? ""
+            : "\\") +
+          repoInfo.repo;
+      }
+    } else {
+      // 否则获取智能路径：优先使用当前资源管理器路径
+      let basePath;
+      try {
+        basePath =
+          (await window.services.getCurrentExplorerPath()) ||
+          window.services.getDefaultClonePath();
+      } catch {
+        basePath = window.services.getDefaultClonePath();
+      }
+
+      // 使用window.services的路径拼接方法
+      if (window.services.joinPath) {
+        clonePath.value = window.services.joinPath(basePath, repoInfo.repo);
+      } else {
+        // 简单的路径拼接作为后备方案
+        clonePath.value =
+          basePath +
+          (basePath.endsWith("\\") || basePath.endsWith("/") ? "" : "\\") +
+          repoInfo.repo;
+      }
+    }
+  } catch (error) {
+    console.error("设置自动克隆路径失败:", error);
+  }
+};
+
 // 处理手动输入仓库URL
 const onRepoUrlInput = () => {
   repoUrlError.value = "";
@@ -416,41 +561,38 @@ const confirmRepoUrl = async () => {
 // 监听器
 watch(repoInfo, async newInfo => {
   if (newInfo) {
-    // 优先使用用户设置的默认克隆路径
-    if (settings.value.defaultClonePath) {
-      const path = require("path");
-      clonePath.value = path.join(
-        settings.value.defaultClonePath,
-        newInfo.repo
-      );
-    } else {
-      // 否则获取智能路径：优先使用当前资源管理器路径
-      let basePath;
-      try {
-        basePath =
-          (await window.services.getCurrentExplorerPath()) ||
-          window.services.getDefaultClonePath();
-      } catch {
-        basePath = window.services.getDefaultClonePath();
-      }
-      // 使用Node.js的path.join进行跨平台路径拼接
-      const path = require("path");
-      clonePath.value = path.join(basePath, newInfo.repo);
-    }
+    await setAutoClonePath(newInfo);
   }
 });
 
+// 组件卸载时移除事件监听器
+onUnmounted(() => {
+  document.removeEventListener('click', closeDropdown);
+});
+
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
+  // 添加全局点击事件监听器
+  document.addEventListener('click', closeDropdown);
   loadSettings();
   if (props.enterAction && props.enterAction.payload !== "git克隆") {
     repoUrl.value = props.enterAction.payload;
     repoInfo.value = window.services.extractRepoInfo(repoUrl.value);
     hasInitialRepo.value = true;
+
+    // 自动设置克隆路径
+    await setAutoClonePath(repoInfo.value);
+
     // 自动加载分支
     loadBranches();
   } else {
     hasInitialRepo.value = false;
+
+    // 即使没有初始仓库，也尝试设置默认路径
+    if (settings.value.defaultClonePath) {
+      // 如果有默认路径设置，先设置一个基础路径
+      clonePath.value = settings.value.defaultClonePath;
+    }
   }
 });
 </script>
@@ -513,7 +655,7 @@ onMounted(() => {
 }
 
 .confirm-btn {
-  padding: 12px 24px;
+  padding: 5px 0;
   background: linear-gradient(135deg, #007acc, #0056b3);
   color: white;
   border: none;
@@ -704,19 +846,179 @@ onMounted(() => {
 
 .input-group select,
 .input-group input {
-  padding: 8px 12px;
-  border: 1px solid #d1d5da;
-  border-radius: 6px;
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
   font-size: 14px;
-  background: white;
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
   box-sizing: border-box;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  font-weight: 500;
+  color: #333;
 }
 
 .input-group select:focus,
 .input-group input:focus {
   outline: none;
-  border-color: #0366d6;
-  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #ffffff, #f0f4ff);
+  transform: translateY(-1px);
+}
+
+.input-group select:hover {
+  border-color: #b3c6ff;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.input-group select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #f5f5f5, #e9ecef);
+  transform: none;
+}
+
+.input-group select option {
+  padding: 12px 16px;
+  background: white;
+  color: #333;
+  font-weight: 500;
+  border: none;
+}
+
+.input-group select option:hover {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.input-group select option:checked {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  font-weight: 600;
+}
+
+/* 自定义下拉组件样式 */
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  font-weight: 500;
+  color: #333;
+  user-select: none;
+}
+
+.select-trigger:hover {
+  border-color: #b3c6ff;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.custom-select.open .select-trigger {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #ffffff, #f0f4ff);
+  transform: translateY(-1px);
+}
+
+.custom-select.disabled .select-trigger {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #f5f5f5, #e9ecef);
+  transform: none;
+}
+
+.selected-text {
+  flex: 1;
+  text-align: left;
+}
+
+.dropdown-arrow {
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.custom-select.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #667eea;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  animation: dropdownSlide 0.2s ease-out;
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  transform: translateX(2px);
+}
+
+.dropdown-item.selected {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  font-weight: 600;
+  position: relative;
+}
+
+.dropdown-item.selected::after {
+  content: '✓';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: bold;
 }
 
 .path-input {
@@ -744,18 +1046,91 @@ onMounted(() => {
 }
 
 .refresh-btn {
-  padding: 8px 12px;
-  background: #f6f8fa;
-  border: 1px solid #d1d5da;
-  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 80px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
 }
 
-.refresh-btn:hover {
-  background: #e1e4e8;
+.refresh-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+.refresh-btn:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.refresh-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.refresh-btn:disabled {
+  background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.refresh-icon,
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.refresh-icon {
+  transition: transform 0.3s ease;
+}
+
+.refresh-btn:hover:not(:disabled) .refresh-icon {
+  transform: rotate(180deg);
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.refresh-btn span {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .select-btn {

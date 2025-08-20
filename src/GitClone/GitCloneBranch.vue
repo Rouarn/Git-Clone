@@ -254,16 +254,19 @@ const loadBranches = async () => {
 
 const selectPath = () => {
   try {
+    // 获取跨平台的默认路径
+    const defaultPath = clonePath.value || window.services.getDefaultClonePath();
+    
     const result = window.utools.showOpenDialog({
       properties: ["openDirectory"],
-      defaultPath: clonePath.value || "C:\\",
+      defaultPath: defaultPath,
     });
 
     if (result && result.length > 0) {
       const repoName = repoInfo.value?.repo || "repository";
-      // 使用Windows路径分隔符，因为这是Windows环境
-      const separator = "\\";
-      clonePath.value = result[0] + separator + repoName;
+      // 使用Node.js的path.sep获取当前系统的路径分隔符
+      const path = require('path');
+      clonePath.value = path.join(result[0], repoName);
     } else {
     }
   } catch (error) {
@@ -412,9 +415,8 @@ watch(repoInfo, async newInfo => {
   if (newInfo) {
     // 优先使用用户设置的默认克隆路径
     if (settings.value.defaultClonePath) {
-      const separator = "\\";
-      clonePath.value =
-        settings.value.defaultClonePath + separator + newInfo.repo;
+      const path = require('path');
+      clonePath.value = path.join(settings.value.defaultClonePath, newInfo.repo);
     } else {
       // 否则获取智能路径：优先使用当前资源管理器路径
       let basePath;
@@ -425,9 +427,9 @@ watch(repoInfo, async newInfo => {
       } catch {
         basePath = window.services.getDefaultClonePath();
       }
-      // 使用Windows路径分隔符，因为这是Windows环境
-      const separator = "\\";
-      clonePath.value = basePath + separator + newInfo.repo;
+      // 使用Node.js的path.join进行跨平台路径拼接
+      const path = require('path');
+      clonePath.value = path.join(basePath, newInfo.repo);
     }
   }
 });

@@ -1,9 +1,43 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 const { simpleGit } = require("simple-git");
 const { exec } = require("node:child_process");
 const { promisify } = require("node:util");
 const execAsync = promisify(exec);
+
+// 跨平台工具函数
+const platformUtils = {
+  // 获取当前操作系统
+  getPlatform() {
+    return os.platform();
+  },
+  
+  // 判断是否为Windows
+  isWindows() {
+    return os.platform() === 'win32';
+  },
+  
+  // 判断是否为macOS
+  isMacOS() {
+    return os.platform() === 'darwin';
+  },
+  
+  // 判断是否为Linux
+  isLinux() {
+    return os.platform() === 'linux';
+  },
+  
+  // 获取路径分隔符
+  getPathSeparator() {
+    return path.sep;
+  },
+  
+  // 获取用户主目录
+  getHomeDir() {
+    return os.homedir();
+  }
+};
 
 // 通过 window 对象向渲染进程注入 nodejs 能力
 window.services = {
@@ -182,32 +216,61 @@ window.services = {
     return path.join(window.utools.getPath("downloads"), repoInfo.repo);
   },
 
-  // 获取当前Windows资源管理器路径
+  // 获取当前文件管理器路径（跨平台）
   getCurrentExplorerPath() {
     try {
-      // 尝试获取当前活动的文件夹路径
       const { exec } = require("child_process");
       return new Promise(resolve => {
-        exec(
-          'powershell "Get-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SessionInfo\\1\\Desktop" -Name "DesktopViewModeAggregationId" 2>$null; if($?) { (New-Object -ComObject Shell.Application).Windows() | Where-Object { $_.Name -eq "File Explorer" } | Select-Object -First 1 | ForEach-Object { $_.Document.Folder.Self.Path } }"',
-          (error, stdout) => {
-            if (!error && stdout.trim()) {
-              resolve(stdout.trim());
-            } else {
-              resolve(null);
+        if (platformUtils.isWindows()) {
+          // Windows: 获取资源管理器路径
+          exec(
+            'powershell "Get-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SessionInfo\\1\\Desktop" -Name "DesktopViewModeAggregationId" 2>$null; if($?) { (New-Object -ComObject Shell.Application).Windows() | Where-Object { $_.Name -eq "File Explorer" } | Select-Object -First 1 | ForEach-Object { $_.Document.Folder.Self.Path } }"',
+            (error, stdout) => {
+              if (!error && stdout.trim()) {
+                resolve(stdout.trim());
+              } else {
+                resolve(null);
+              }
             }
-          }
-        );
+          );
+        } else if (platformUtils.isMacOS()) {
+          // macOS: 获取Finder当前路径
+          exec(
+            'osascript -e "tell application \"Finder\" to if (count of Finder windows) > 0 then get POSIX path of (target of front Finder window as alias)"',
+            (error, stdout) => {
+              if (!error && stdout.trim()) {
+                resolve(stdout.trim());
+              } else {
+                resolve(null);
+              }
+            }
+          );
+        } else {
+          // Linux: 返回用户主目录（大多数文件管理器没有统一的获取当前路径的方法）
+          resolve(platformUtils.getHomeDir());
+        }
       });
     } catch (error) {
       return Promise.resolve(null);
     }
   },
 
-  // 获取默认克隆路径
+  // 获取默认克隆路径（跨平台）
   getDefaultClonePath() {
     const setting = window.utools.dbStorage.getItem("git-clone-path");
-    return setting || path.join(window.utools.getPath("desktop"), "GitRepos");
+    if (setting) {
+      return setting;
+    }
+    
+    // 根据操作系统返回合适的默认路径
+    if (platformUtils.isWindows()) {
+      return path.join(window.utools.getPath("desktop"), "GitRepos");
+    } else if (platformUtils.isMacOS()) {
+      return path.join(platformUtils.getHomeDir(), "Documents", "GitRepos");
+    } else {
+      // Linux
+      return path.join(platformUtils.getHomeDir(), "GitRepos");
+    }
   },
 
   // 设置默认克隆路径
@@ -369,9 +432,25 @@ window.services = {
   },
 
   // 打开文件夹
+  // 打开文件夹（跨平台）
   openFolder(folderPath) {
     try {
-      window.utools.shellOpenPath(folderPath);
+      // 优先使用utools的shellOpenPath方法
+      if (window.utools && window.utools.shellOpenPath) {
+        window.utools.shellOpenPath(folderPath);
+        return;
+      }
+      
+      // 备用方案：使用系统命令
+      const { exec } = require("child_process");
+      if (platformUtils.isWindows()) {
+        exec(`explorer "${folderPath}"`);
+      } else if (platformUtils.isMacOS()) {
+        exec(`open "${folderPath}"`);
+      } else {
+        // Linux: 尝试常见的文件管理器
+        exec(`xdg-open "${folderPath}" || nautilus "${folderPath}" || dolphin "${folderPath}" || thunar "${folderPath}"`);
+      }
     } catch (error) {
       console.error("打开文件夹失败:", error);
     }

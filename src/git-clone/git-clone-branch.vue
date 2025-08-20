@@ -3,7 +3,8 @@
     <div class="header">
       <h3>分支克隆</h3>
       <div class="repo-info" v-if="repoInfo">
-        <span class="platform">{{ repoInfo.platform }}</span>
+        <span class="platform">{{ repoInfo.platform }}</span
+        >git-clone-branch
         <span class="repo-name">{{ repoInfo.owner }}/{{ repoInfo.repo }}</span>
       </div>
     </div>
@@ -253,10 +254,12 @@ const loadBranches = async () => {
 };
 
 const selectPath = () => {
+  git - clone - branch;
   try {
     // 获取跨平台的默认路径
-    const defaultPath = clonePath.value || window.services.getDefaultClonePath();
-    
+    const defaultPath =
+      clonePath.value || window.services.getDefaultClonePath();
+
     const result = window.utools.showOpenDialog({
       properties: ["openDirectory"],
       defaultPath: defaultPath,
@@ -265,7 +268,7 @@ const selectPath = () => {
     if (result && result.length > 0) {
       const repoName = repoInfo.value?.repo || "repository";
       // 使用Node.js的path.sep获取当前系统的路径分隔符
-      const path = require('path');
+      const path = require("path");
       clonePath.value = path.join(result[0], repoName);
     } else {
     }
@@ -415,8 +418,11 @@ watch(repoInfo, async newInfo => {
   if (newInfo) {
     // 优先使用用户设置的默认克隆路径
     if (settings.value.defaultClonePath) {
-      const path = require('path');
-      clonePath.value = path.join(settings.value.defaultClonePath, newInfo.repo);
+      const path = require("path");
+      clonePath.value = path.join(
+        settings.value.defaultClonePath,
+        newInfo.repo
+      );
     } else {
       // 否则获取智能路径：优先使用当前资源管理器路径
       let basePath;
@@ -428,7 +434,7 @@ watch(repoInfo, async newInfo => {
         basePath = window.services.getDefaultClonePath();
       }
       // 使用Node.js的path.join进行跨平台路径拼接
-      const path = require('path');
+      const path = require("path");
       clonePath.value = path.join(basePath, newInfo.repo);
     }
   }
